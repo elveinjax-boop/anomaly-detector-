@@ -23,6 +23,7 @@ import { MetricTile } from "./components/MetricTile";
 import { MetricsPanel } from "./components/MetricsPanel";
 import { PrivacyPage } from "./components/PrivacyPage";
 import { StatusBadge } from "./components/StatusBadge";
+import { BatchDashboard } from "./components/BatchDashboard";
 import type { AudioSnapshot } from "./audio/analysis";
 import type { ModelMetrics, ModelStatus, PredictionResult, TrainingResponse } from "./types";
 
@@ -57,6 +58,7 @@ export default function App(): JSX.Element {
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
   const [serviceMessage, setServiceMessage] = useState("Ready");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"live" | "batch">("live");
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -448,7 +450,6 @@ export default function App(): JSX.Element {
               </StatusBadge>
               <StatusBadge tone={micBadgeTone(micStatus)}>{micStatusLabel(micStatus)}</StatusBadge>
             </div>
-            <p className="mt-1 break-words text-sm text-stone-400">{getApiBaseUrl()}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -485,6 +486,24 @@ export default function App(): JSX.Element {
         </div>
       </header>
 
+      <div className="border-b border-white/5 bg-black/20">
+        <div className="mx-auto flex w-full max-w-7xl gap-6 px-4 sm:px-6">
+          <button
+            className={`border-b-2 py-3 text-sm font-semibold transition-colors ${activeTab === "live" ? "border-app-accent text-white" : "border-transparent text-stone-400 hover:text-stone-200"}`}
+            onClick={() => setActiveTab("live")}
+          >
+            Live Monitoring
+          </button>
+          <button
+            className={`border-b-2 py-3 text-sm font-semibold transition-colors ${activeTab === "batch" ? "border-app-accent text-white" : "border-transparent text-stone-400 hover:text-stone-200"}`}
+            onClick={() => setActiveTab("batch")}
+          >
+            Batch Upload & Train
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "live" ? (
       <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-5">
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -618,6 +637,11 @@ export default function App(): JSX.Element {
           </section>
         </aside>
       </div>
+      ) : (
+        <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+          <BatchDashboard onModelUpdated={refreshModelStatus} />
+        </div>
+      )}
     </main>
   );
 }

@@ -1,0 +1,32 @@
+import joblib
+import json
+from pathlib import Path
+
+print("Checking model files...")
+m = joblib.load('models/fan_model.pkl')
+s = joblib.load('models/scaler.pkl')
+metrics = json.loads(Path('models/metrics.json').read_text())
+meta = json.loads(Path('models/metadata.json').read_text())
+
+print()
+print("=" * 40)
+print("MODEL STATUS: READY")
+print("=" * 40)
+print(f"Model type:   {type(m).__name__}")
+print(f"Classes:      {list(m.classes_)}")
+print(f"N estimators: {m.n_estimators}")
+print(f"Trained at:   {meta.get('trained_at')}")
+print()
+print("--- Performance Metrics ---")
+print(f"Accuracy:  {metrics['accuracy']*100:.2f}%")
+print(f"Precision: {metrics['precision']*100:.2f}%")
+print(f"Recall:    {metrics['recall']*100:.2f}%")
+print(f"F1 Score:  {metrics['f1_score']*100:.2f}%")
+print(f"Train:     {metrics['train_samples']} samples")
+print(f"Test:      {metrics['test_samples']} samples")
+print()
+print("--- Dataset ---")
+print(f"Normal files:   {meta.get('valid_file_counts', {}).get('NORMAL', '?')}")
+print(f"Abnormal files: {meta.get('valid_file_counts', {}).get('ABNORMAL', '?')}")
+print()
+print("The model is fully trained and ready to run!")

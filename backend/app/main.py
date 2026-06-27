@@ -12,6 +12,7 @@ from .ml_service import ModelNotReadyError, model_status, predict_wav_bytes, sav
 
 class TrainRequest(BaseModel):
     include_local_recordings: bool = False
+    custom_dataset_path: str | None = None
 
 
 app = FastAPI(
@@ -50,8 +51,9 @@ def get_model_status() -> dict:
 @app.post("/train")
 def train(request: TrainRequest | None = None) -> dict:
     include_local = request.include_local_recordings if request else False
+    custom_path = request.custom_dataset_path if request else None
     try:
-        return train_model(include_local_recordings=include_local)
+        return train_model(include_local_recordings=include_local, custom_dataset_path=custom_path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

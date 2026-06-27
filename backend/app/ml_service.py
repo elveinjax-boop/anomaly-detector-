@@ -76,7 +76,7 @@ def model_status() -> dict[str, Any]:
     }
 
 
-def _dataset_sources(include_local_recordings: bool) -> dict[str, list[Path]]:
+def _dataset_sources(include_local_recordings: bool, custom_dataset_path: str | None = None) -> dict[str, list[Path]]:
     sources = {
         "NORMAL": [DEFAULT_NORMAL_DIR],
         "ABNORMAL": [DEFAULT_ABNORMAL_DIR],
@@ -84,11 +84,17 @@ def _dataset_sources(include_local_recordings: bool) -> dict[str, list[Path]]:
     if include_local_recordings:
         sources["NORMAL"].append(LOCAL_NORMAL_DIR)
         sources["ABNORMAL"].append(LOCAL_ABNORMAL_DIR)
+        
+    if custom_dataset_path:
+        base_path = Path(custom_dataset_path)
+        sources["NORMAL"].extend([base_path / "NORMAL", base_path / "normal"])
+        sources["ABNORMAL"].extend([base_path / "ABNORMAL", base_path / "abnormal"])
+
     return sources
 
 
-def _build_dataset(include_local_recordings: bool) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
-    sources = _dataset_sources(include_local_recordings)
+def _build_dataset(include_local_recordings: bool, custom_dataset_path: str | None = None) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    sources = _dataset_sources(include_local_recordings, custom_dataset_path)
     rows: list[np.ndarray] = []
     labels: list[str] = []
     skipped: list[dict[str, str]] = []
@@ -121,9 +127,9 @@ def _build_dataset(include_local_recordings: bool) -> tuple[np.ndarray, np.ndarr
     return np.vstack(rows), np.asarray(labels), metadata
 
 
-def train_model(include_local_recordings: bool = False) -> dict[str, Any]:
+def train_model(include_local_recordings: bool = False, custom_dataset_path: str | None = None) -> dict[str, Any]:
     ensure_project_dirs()
-    X, y, metadata = _build_dataset(include_local_recordings=include_local_recordings)
+    X, y, metadata = _build_dataset(include_local_recordings=include_local_recordings, custom_dataset_path=custom_dataset_path)
 
     class_counts = Counter(y)
     can_stratify = min(class_counts.values()) >= 2 and X.shape[0] >= 5

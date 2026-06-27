@@ -33,11 +33,14 @@ export async function getModelStatus(): Promise<ModelStatus> {
   return parseResponse(response);
 }
 
-export async function trainModel(includeLocalRecordings = false): Promise<TrainingResponse> {
+export async function trainModel(includeLocalRecordings = false, customDatasetPath?: string): Promise<TrainingResponse> {
   const response = await fetch(`${API_BASE_URL}/train`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ include_local_recordings: includeLocalRecordings })
+    body: JSON.stringify({ 
+      include_local_recordings: includeLocalRecordings,
+      custom_dataset_path: customDatasetPath
+    })
   });
   return parseResponse(response);
 }

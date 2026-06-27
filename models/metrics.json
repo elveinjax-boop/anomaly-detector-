@@ -1,0 +1,23 @@
+{
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1_score": 1.0,
+  "confusion_matrix": [
+    [
+      207,
+      0
+    ],
+    [
+      0,
+      81
+    ]
+  ],
+  "labels": [
+    "NORMAL",
+    "ABNORMAL"
+  ],
+  "evaluation_note": "Metrics are calculated on a stratified holdout set.",
+  "train_samples": 1152,
+  "test_samples": 288
+}
