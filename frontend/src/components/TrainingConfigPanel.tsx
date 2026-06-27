@@ -33,6 +33,17 @@ const SPLIT_PRESETS = [
   { label: "90 / 10", train: 0.9 },
 ];
 
+const FALLBACK_ALGORITHMS: AlgorithmInfo[] = [
+  { key: "random_forest", name: "Random Forest", description: "Ensemble of decision trees — robust and accurate.", incremental: false },
+  { key: "decision_tree", name: "Decision Tree", description: "Single tree classifier — fast and interpretable.", incremental: false },
+  { key: "svm", name: "Support Vector Machine", description: "Finds the optimal hyperplane to separate classes.", incremental: false },
+  { key: "knn", name: "K-Nearest Neighbors", description: "Classifies by majority vote of the nearest neighbors.", incremental: false },
+  { key: "logistic_regression", name: "Logistic Regression", description: "Linear model for classification — fast.", incremental: false },
+  { key: "naive_bayes", name: "Naive Bayes", description: "Probabilistic classifier — supports incremental learning.", incremental: true },
+  { key: "gradient_boosting", name: "Gradient Boosting", description: "Sequential ensemble — high accuracy.", incremental: false },
+  { key: "sgd", name: "SGD Classifier", description: "Stochastic Gradient Descent — supports incremental learning.", incremental: true }
+];
+
 export function TrainingConfigPanel() {
   const training = useTraining();
   const [algorithms, setAlgorithms] = useState<AlgorithmInfo[]>([]);
@@ -43,10 +54,16 @@ export function TrainingConfigPanel() {
 
   useEffect(() => {
     getAvailableAlgorithms()
-      .then(setAlgorithms)
+      .then((data) => {
+        if (data && data.length > 0) {
+          setAlgorithms(data);
+        } else {
+          setAlgorithms(FALLBACK_ALGORITHMS);
+        }
+      })
       .catch(() => {
         // Fallback if endpoint is unavailable
-        setAlgorithms([]);
+        setAlgorithms(FALLBACK_ALGORITHMS);
       });
   }, []);
 
