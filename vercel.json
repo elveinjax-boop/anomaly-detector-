@@ -1,0 +1,11 @@
+{
+  "cleanUrls": true,
+  "buildCommand": "cd frontend && pnpm install && pnpm run build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
