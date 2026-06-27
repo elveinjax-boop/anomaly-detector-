@@ -6,6 +6,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 MODELS_DIR = Path(os.getenv("FAN_MODELS_DIR", PROJECT_ROOT / "models"))
 DATASET_DIR = Path(os.getenv("FAN_LOCAL_DATASET_DIR", PROJECT_ROOT / "dataset"))
+OUTPUTS_DIR = Path(os.getenv("FAN_OUTPUTS_DIR", PROJECT_ROOT / "outputs"))
 
 DEFAULT_NORMAL_DIR = Path(
     os.getenv(

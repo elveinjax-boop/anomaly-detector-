@@ -5,12 +5,12 @@
   "f1_score": 1.0,
   "confusion_matrix": [
     [
-      207,
+      616,
       0
     ],
     [
       0,
-      81
+      172
     ]
   ],
   "labels": [
@@ -18,6 +18,6 @@
     "ABNORMAL"
   ],
   "evaluation_note": "Metrics are calculated on a stratified holdout set.",
-  "train_samples": 1152,
-  "test_samples": 288
+  "train_samples": 3152,
+  "test_samples": 788
 }

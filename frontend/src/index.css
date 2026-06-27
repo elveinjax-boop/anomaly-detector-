@@ -44,6 +44,8 @@ button:disabled {
   filter: grayscale(100%);
 }
 
+/* ── Component Layer ────────────────────────────────────────────────────────── */
+
 @layer components {
   .command-button {
     @apply inline-flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-white/5 backdrop-blur-md px-4 text-sm font-semibold shadow-glass transition-all hover:bg-white/10 active:scale-95;
@@ -51,5 +53,209 @@ button:disabled {
   
   .glass-panel {
     @apply rounded-xl border border-app-panelBorder bg-app-panel backdrop-blur-lg shadow-glass;
+  }
+}
+
+/* ── Progress Bar ───────────────────────────────────────────────────────────── */
+
+.progress-bar-fill {
+  background: linear-gradient(
+    90deg,
+    #0ea5e9 0%,
+    #38bdf8 40%,
+    #0ea5e9 80%,
+    #38bdf8 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.5);
+  transition: width 0.5s ease;
+}
+
+@keyframes progress-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Confirm Dialog ─────────────────────────────────────────────────────────── */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  animation: overlay-fade-in 0.2s ease-out;
+}
+
+.confirm-dialog {
+  position: relative;
+  width: 90%;
+  max-width: 420px;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 1.75rem;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(14, 165, 233, 0.05);
+  animation: dialog-slide-up 0.25s ease-out;
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Training Progress Overlay ──────────────────────────────────────────────── */
+
+.training-overlay {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 90;
+  width: 380px;
+  max-width: calc(100vw - 2.5rem);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 12, 12, 0.95);
+  backdrop-filter: blur(24px);
+  padding: 1rem 1.25rem;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(14, 165, 233, 0.08);
+  animation: overlay-slide-up 0.3s ease-out;
+}
+
+.training-overlay-pill {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 12, 12, 0.95);
+  backdrop-filter: blur(24px);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+  animation: overlay-slide-up 0.3s ease-out;
+}
+
+.training-overlay-pill:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(20, 20, 20, 0.95);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 0 15px rgba(14, 165, 233, 0.1);
+}
+
+@keyframes overlay-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Train-Test Split Slider ────────────────────────────────────────────────── */
+
+.split-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.3), rgba(245, 158, 11, 0.3));
+  outline: none;
+  cursor: pointer;
+}
+
+.split-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.split-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: 3px solid #0c0c0c;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+  transition: box-shadow 0.2s;
+}
+
+.split-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 18px rgba(14, 165, 233, 0.8);
+}
+
+.split-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: 3px solid #0c0c0c;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+}
+
+/* ── Algorithm Card Hover ───────────────────────────────────────────────────── */
+
+.algo-card {
+  transition: all 0.2s ease;
+}
+
+.algo-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* ── Toast Notification (future use) ────────────────────────────────────────── */
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
   }
 }

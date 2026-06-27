@@ -1,19 +1,25 @@
 {
   "configured_sources": {
     "NORMAL": [
+      "C:\\keltron project\\6_dB_fan\\fan\\id_00\\normal",
+      "C:\\Users\\ajay edavalath\\Documents\\Codex\\2026-06-19\\build-a-complete-ai-powered-fan\\dataset\\normal",
+      "C:\\keltron project\\6_dB_fan\\fan_2\\NORMAL",
       "C:\\keltron project\\6_dB_fan\\fan_2\\normal"
     ],
     "ABNORMAL": [
+      "C:\\keltron project\\6_dB_fan\\fan\\id_00\\abnormal",
+      "C:\\Users\\ajay edavalath\\Documents\\Codex\\2026-06-19\\build-a-complete-ai-powered-fan\\dataset\\abnormal",
+      "C:\\keltron project\\6_dB_fan\\fan_2\\ABNORMAL",
       "C:\\keltron project\\6_dB_fan\\fan_2\\abnormal"
     ]
   },
   "raw_file_counts": {
-    "NORMAL": 1033,
-    "ABNORMAL": 407
+    "NORMAL": 3078,
+    "ABNORMAL": 862
   },
   "valid_file_counts": {
-    "NORMAL": 1033,
-    "ABNORMAL": 407
+    "NORMAL": 3078,
+    "ABNORMAL": 862
   },
   "skipped_files": [],
   "feature_names": [
@@ -92,8 +98,8 @@
     "chroma_12_mean",
     "chroma_12_std"
   ],
-  "trained_at": "2026-06-27T13:46:35.591606+00:00",
-  "include_local_recordings": false,
+  "trained_at": "2026-06-27T21:00:53.716506+00:00",
+  "include_local_recordings": true,
   "model_type": "RandomForestClassifier",
   "classes": [
     "ABNORMAL",

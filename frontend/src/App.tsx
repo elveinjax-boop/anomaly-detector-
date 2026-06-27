@@ -4,52 +4,53 @@ import {
   BadgeCheck,
   BrainCircuit,
   CircleStop,
-  DatabaseZap,
   Gauge,
   HeartPulse,
-  Loader2,
   Mic,
   MicOff,
   Play,
-  RefreshCw,
-  Save
+  Save,
+  ScanSearch,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import { getApiBaseUrl, getHealth, getModelStatus, predictAudio, retrainModel, saveTrainingRecording, trainModel } from "./api";
+import { getHealth, predictAudio, saveTrainingRecording } from "./api";
 import { mergeFloat32, encodeWav } from "./audio/wav";
 import { AudioVisualizer } from "./components/AudioVisualizer";
+import { BatchDashboard } from "./components/BatchDashboard";
 import { MetricTile } from "./components/MetricTile";
 import { MetricsPanel } from "./components/MetricsPanel";
+import { PredictionPanel } from "./components/PredictionPanel";
 import { PrivacyPage } from "./components/PrivacyPage";
 import { StatusBadge } from "./components/StatusBadge";
-import { BatchDashboard } from "./components/BatchDashboard";
+import { TrainingConfigPanel } from "./components/TrainingConfigPanel";
+import { TrainingProgressOverlay } from "./components/TrainingProgressOverlay";
+import { TrainingProvider, useTraining } from "./context/TrainingContext";
 import type { AudioSnapshot } from "./audio/analysis";
-import type { ModelMetrics, ModelStatus, PredictionResult, TrainingResponse } from "./types";
+import type { PredictionResult } from "./types";
 
 const PRIVACY_KEY = "fan-monitor-privacy-accepted";
 const MIN_RECORDING_SECONDS = 0.5;
 
 type MicStatus = "not-requested" | "requesting" | "granted" | "denied" | "stopped" | "error";
 type Label = "NORMAL" | "ABNORMAL";
+type TabKey = "live" | "batch" | "predict";
 
 type WindowWithWebkitAudio = Window &
   typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
   };
 
-export default function App(): JSX.Element {
+function AppInner(): JSX.Element {
+  const training = useTraining();
   const [privacyAccepted, setPrivacyAccepted] = useState(() => localStorage.getItem(PRIVACY_KEY) === "true");
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
-  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
-  const [trainingMetrics, setTrainingMetrics] = useState<ModelMetrics | null>(null);
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [snapshot, setSnapshot] = useState<AudioSnapshot>({ amplitude: 0, dominantFrequency: 0 });
   const [micStatus, setMicStatus] = useState<MicStatus>("not-requested");
   const [hasAudioSession, setHasAudioSession] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
-  const [isTraining, setIsTraining] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordLabel, setRecordLabel] = useState<Label>("NORMAL");
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
@@ -58,7 +59,7 @@ export default function App(): JSX.Element {
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
   const [serviceMessage, setServiceMessage] = useState("Ready");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"live" | "batch">("live");
+  const [activeTab, setActiveTab] = useState<TabKey>("live");
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -99,18 +100,6 @@ export default function App(): JSX.Element {
           setErrorMessage(getErrorMessage(error));
         }
       }
-
-      try {
-        const status = await getModelStatus();
-        if (!cancelled) {
-          setModelStatus(status);
-          setTrainingMetrics(status.metrics);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(getErrorMessage(error));
-        }
-      }
     }
 
     if (privacyAccepted) {
@@ -148,12 +137,6 @@ export default function App(): JSX.Element {
   function acceptPrivacy() {
     localStorage.setItem(PRIVACY_KEY, "true");
     setPrivacyAccepted(true);
-  }
-
-  async function refreshModelStatus() {
-    const status = await getModelStatus();
-    setModelStatus(status);
-    setTrainingMetrics(status.metrics);
   }
 
   async function ensureAudioSession(): Promise<AudioContext> {
@@ -352,30 +335,6 @@ export default function App(): JSX.Element {
     setServiceMessage("Monitoring stopped");
   }
 
-  async function handleTraining(mode: "train" | "retrain") {
-    setIsTraining(true);
-    setErrorMessage(null);
-    setServiceMessage(mode === "train" ? "Training model" : "Retraining model");
-    try {
-      const result: TrainingResponse = mode === "train" ? await trainModel(false) : await retrainModel();
-      setModelStatus({
-        trained: result.trained,
-        model_path: result.model_path,
-        scaler_path: result.scaler_path,
-        metrics: result.metrics,
-        metadata: result.metadata
-      });
-      setTrainingMetrics(result.metrics);
-      setBackendOnline(true);
-      setServiceMessage(mode === "train" ? "Model trained" : "Model retrained");
-    } catch (error) {
-      setBackendOnline(false);
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setIsTraining(false);
-    }
-  }
-
   async function toggleRecording() {
     if (isRecording) {
       await stopAndSaveRecording();
@@ -415,7 +374,7 @@ export default function App(): JSX.Element {
       const result = await saveTrainingRecording(blob, recordLabel);
       setServiceMessage(`${result.label} recording saved`);
       setErrorMessage(null);
-      await refreshModelStatus();
+      await training.refreshModelStatus();
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -430,10 +389,17 @@ export default function App(): JSX.Element {
     return <PrivacyPage onAccept={acceptPrivacy} />;
   }
 
-  const currentMetrics = trainingMetrics ?? modelStatus?.metrics ?? null;
-  const modelReady = Boolean(modelStatus?.trained);
-  const modelDetail = modelStatus?.metadata?.trained_at ? `Updated ${formatDate(modelStatus.metadata.trained_at)}` : "No saved model";
+  const currentMetrics = training.trainingMetrics ?? training.modelStatus?.metrics ?? null;
+  const modelReady = Boolean(training.modelStatus?.trained);
+  const modelDetail = training.modelStatus?.metadata?.trained_at ? `Updated ${formatDate(training.modelStatus.metadata.trained_at)}` : "No saved model";
   const predictionTone = prediction?.prediction === "ABNORMAL" ? "red" : prediction?.prediction === "NORMAL" ? "green" : "plain";
+  const isTrainingActive = training.status === "running";
+
+  const tabs: { key: TabKey; label: string; icon?: JSX.Element }[] = [
+    { key: "live", label: "Live Monitoring" },
+    { key: "batch", label: "Train & Configure" },
+    { key: "predict", label: "Predict", icon: <ScanSearch size={14} /> },
+  ];
 
   return (
     <main className="min-h-screen text-stone-200">
@@ -449,6 +415,9 @@ export default function App(): JSX.Element {
                 API {backendOnline ? "Online" : backendOnline === false ? "Offline" : "Checking"}
               </StatusBadge>
               <StatusBadge tone={micBadgeTone(micStatus)}>{micStatusLabel(micStatus)}</StatusBadge>
+              {isTrainingActive && (
+                <StatusBadge tone="warning">Training {training.progress}%</StatusBadge>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -486,163 +455,164 @@ export default function App(): JSX.Element {
         </div>
       </header>
 
+      {/* Tab bar */}
       <div className="border-b border-white/5 bg-black/20">
         <div className="mx-auto flex w-full max-w-7xl gap-6 px-4 sm:px-6">
-          <button
-            className={`border-b-2 py-3 text-sm font-semibold transition-colors ${activeTab === "live" ? "border-app-accent text-white" : "border-transparent text-stone-400 hover:text-stone-200"}`}
-            onClick={() => setActiveTab("live")}
-          >
-            Live Monitoring
-          </button>
-          <button
-            className={`border-b-2 py-3 text-sm font-semibold transition-colors ${activeTab === "batch" ? "border-app-accent text-white" : "border-transparent text-stone-400 hover:text-stone-200"}`}
-            onClick={() => setActiveTab("batch")}
-          >
-            Batch Upload & Train
-          </button>
-        </div>
-      </div>
-
-      {activeTab === "live" ? (
-      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-5">
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricTile
-              label="Model Status"
-              value={modelReady ? "Ready" : "Not Trained"}
-              detail={modelDetail}
-              icon={<BrainCircuit size={22} aria-hidden="true" />}
-              tone={modelReady ? "green" : "amber"}
-            />
-            <MetricTile
-              label="Prediction"
-              value={prediction?.prediction ?? "Waiting"}
-              detail={isPredicting ? "Analyzing audio" : "2 second window"}
-              icon={<Activity size={22} aria-hidden="true" />}
-              tone={predictionTone}
-            />
-            <MetricTile
-              label="Confidence"
-              value={prediction ? `${prediction.confidence.toFixed(1)}%` : "0.0%"}
-              detail={prediction ? probabilityDetail(prediction) : "No prediction yet"}
-              icon={<BadgeCheck size={22} aria-hidden="true" />}
-              tone="cyan"
-            />
-            <MetricTile
-              label="Health Score"
-              value={prediction ? `${prediction.health_score.toFixed(1)}%` : "0.0%"}
-              detail={prediction?.prediction === "ABNORMAL" ? "Inspection recommended" : "Normal probability"}
-              icon={<HeartPulse size={22} aria-hidden="true" />}
-              tone={prediction?.prediction === "ABNORMAL" ? "red" : "green"}
-            />
-          </section>
-
-          <section className="grid gap-3 sm:grid-cols-2">
-            <MetricTile
-              label="Amplitude"
-              value={snapshot.amplitude.toFixed(3)}
-              detail={isMonitoring ? "RMS level" : "Idle"}
-              icon={<AudioWaveform size={22} aria-hidden="true" />}
-              tone="plain"
-            />
-            <MetricTile
-              label="Dominant Frequency"
-              value={`${snapshot.dominantFrequency.toFixed(1)} Hz`}
-              detail={`${sampleRate.toLocaleString()} Hz sample rate`}
-              icon={<Gauge size={22} aria-hidden="true" />}
-              tone="plain"
-            />
-          </section>
-
-          <AudioVisualizer analyser={analyserNode} active={hasAudioSession} sampleRate={sampleRate} onSnapshot={handleSnapshot} />
-
-          <MetricsPanel metrics={currentMetrics} />
-        </div>
-
-        <aside className="space-y-5">
-          <section className="glass-panel p-5">
-            <h2 className="text-sm font-bold text-white tracking-wide uppercase">Model Controls</h2>
-            <div className="mt-4 grid gap-3">
-              <button
-                className="command-button justify-center border-app-accent/50 bg-app-accent/10 text-app-accent shadow-[0_0_15px_rgba(14,165,233,0.2)] hover:bg-app-accent/20 hover:shadow-[0_0_20px_rgba(14,165,233,0.4)]"
-                type="button"
-                title="Train model"
-                disabled={isTraining}
-                onClick={() => void handleTraining("train")}
-              >
-                {isTraining ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : <DatabaseZap size={18} aria-hidden="true" />}
-                Train Model
-              </button>
-              <button
-                className="command-button justify-center border-amber-500/50 bg-amber-500/10 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:bg-amber-500/20 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]"
-                type="button"
-                title="Retrain model"
-                disabled={isTraining}
-                onClick={() => void handleTraining("retrain")}
-              >
-                {isTraining ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : <RefreshCw size={18} aria-hidden="true" />}
-                Retrain Model
-              </button>
-            </div>
-          </section>
-
-          <section className="glass-panel p-5">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-white tracking-wide uppercase">Training Data</h2>
-              <StatusBadge tone={isRecording ? "danger" : "neutral"}>{isRecording ? `${recordingSeconds.toFixed(1)}s` : "Idle"}</StatusBadge>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-black/40">
-              <button
-                className={`min-h-11 px-3 text-sm font-semibold transition-colors ${recordLabel === "NORMAL" ? "bg-app-success/20 text-app-success" : "text-stone-400 hover:bg-white/5 hover:text-white"}`}
-                type="button"
-                disabled={isRecording}
-                onClick={() => setRecordLabel("NORMAL")}
-              >
-                NORMAL
-              </button>
-              <button
-                className={`min-h-11 border-l border-white/10 px-3 text-sm font-semibold transition-colors ${recordLabel === "ABNORMAL" ? "bg-app-danger/20 text-app-danger" : "text-stone-400 hover:bg-white/5 hover:text-white"}`}
-                type="button"
-                disabled={isRecording}
-                onClick={() => setRecordLabel("ABNORMAL")}
-              >
-                ABNORMAL
-              </button>
-            </div>
-
+          {tabs.map((tab) => (
             <button
-              className={`command-button mt-4 w-full justify-center ${isRecording ? "border-app-danger/50 bg-app-danger/10 text-app-danger shadow-[0_0_15px_rgba(244,63,94,0.2)] hover:bg-app-danger/20" : "bg-white/5 text-stone-300 hover:text-white"}`}
-              type="button"
-              title="Record training data"
-              disabled={isTraining}
-              onClick={() => void toggleRecording()}
+              key={tab.key}
+              className={`flex items-center gap-1.5 border-b-2 py-3 text-sm font-semibold transition-colors ${
+                activeTab === tab.key
+                  ? "border-app-accent text-white"
+                  : "border-transparent text-stone-400 hover:text-stone-200"
+              }`}
+              onClick={() => setActiveTab(tab.key)}
             >
-              {isRecording ? <MicOff size={18} aria-hidden="true" /> : <Save size={18} aria-hidden="true" />}
-              {isRecording ? "Stop & Save" : "Record Training Data"}
+              {tab.icon}
+              {tab.label}
             </button>
-          </section>
-
-          <section className="glass-panel p-5">
-            <h2 className="text-sm font-bold text-white tracking-wide uppercase">Runtime</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <InfoRow label="Monitoring" value={isMonitoring ? "Running" : "Stopped"} />
-              <InfoRow label="Predicting" value={isPredicting ? "Active" : "Idle"} />
-              <InfoRow label="Microphone" value={micStatusLabel(micStatus)} />
-              <InfoRow label="Status" value={serviceMessage} />
-            </dl>
-            {errorMessage ? (
-              <div className="mt-4 rounded-lg border border-app-danger/30 bg-app-danger/10 p-3 text-sm text-app-danger shadow-[0_0_15px_rgba(244,63,94,0.15)]">{errorMessage}</div>
-            ) : null}
-          </section>
-        </aside>
+          ))}
+        </div>
       </div>
+
+      {/* Tab content */}
+      {activeTab === "live" ? (
+        <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0 space-y-5">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricTile
+                label="Model Status"
+                value={modelReady ? "Ready" : "Not Trained"}
+                detail={modelDetail}
+                icon={<BrainCircuit size={22} aria-hidden="true" />}
+                tone={modelReady ? "green" : "amber"}
+              />
+              <MetricTile
+                label="Prediction"
+                value={prediction?.prediction ?? "Waiting"}
+                detail={isPredicting ? "Analyzing audio" : "2 second window"}
+                icon={<Activity size={22} aria-hidden="true" />}
+                tone={predictionTone}
+              />
+              <MetricTile
+                label="Confidence"
+                value={prediction ? `${prediction.confidence.toFixed(1)}%` : "0.0%"}
+                detail={prediction ? probabilityDetail(prediction) : "No prediction yet"}
+                icon={<BadgeCheck size={22} aria-hidden="true" />}
+                tone="cyan"
+              />
+              <MetricTile
+                label="Health Score"
+                value={prediction ? `${prediction.health_score.toFixed(1)}%` : "0.0%"}
+                detail={prediction?.prediction === "ABNORMAL" ? "Inspection recommended" : "Normal probability"}
+                icon={<HeartPulse size={22} aria-hidden="true" />}
+                tone={prediction?.prediction === "ABNORMAL" ? "red" : "green"}
+              />
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-2">
+              <MetricTile
+                label="Amplitude"
+                value={snapshot.amplitude.toFixed(3)}
+                detail={isMonitoring ? "RMS level" : "Idle"}
+                icon={<AudioWaveform size={22} aria-hidden="true" />}
+                tone="plain"
+              />
+              <MetricTile
+                label="Dominant Frequency"
+                value={`${snapshot.dominantFrequency.toFixed(1)} Hz`}
+                detail={`${sampleRate.toLocaleString()} Hz sample rate`}
+                icon={<Gauge size={22} aria-hidden="true" />}
+                tone="plain"
+              />
+            </section>
+
+            <AudioVisualizer analyser={analyserNode} active={hasAudioSession} sampleRate={sampleRate} onSnapshot={handleSnapshot} />
+
+            <MetricsPanel metrics={currentMetrics} />
+          </div>
+
+          <aside className="space-y-5">
+            {/* Training Data Recording */}
+            <section className="glass-panel p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-bold text-white tracking-wide uppercase">Training Data</h2>
+                <StatusBadge tone={isRecording ? "danger" : "neutral"}>{isRecording ? `${recordingSeconds.toFixed(1)}s` : "Idle"}</StatusBadge>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                <button
+                  className={`min-h-11 px-3 text-sm font-semibold transition-colors ${recordLabel === "NORMAL" ? "bg-app-success/20 text-app-success" : "text-stone-400 hover:bg-white/5 hover:text-white"}`}
+                  type="button"
+                  disabled={isRecording}
+                  onClick={() => setRecordLabel("NORMAL")}
+                >
+                  NORMAL
+                </button>
+                <button
+                  className={`min-h-11 border-l border-white/10 px-3 text-sm font-semibold transition-colors ${recordLabel === "ABNORMAL" ? "bg-app-danger/20 text-app-danger" : "text-stone-400 hover:bg-white/5 hover:text-white"}`}
+                  type="button"
+                  disabled={isRecording}
+                  onClick={() => setRecordLabel("ABNORMAL")}
+                >
+                  ABNORMAL
+                </button>
+              </div>
+
+              <button
+                className={`command-button mt-4 w-full justify-center ${isRecording ? "border-app-danger/50 bg-app-danger/10 text-app-danger shadow-[0_0_15px_rgba(244,63,94,0.2)] hover:bg-app-danger/20" : "bg-white/5 text-stone-300 hover:text-white"}`}
+                type="button"
+                title="Record training data"
+                disabled={isTrainingActive}
+                onClick={() => void toggleRecording()}
+              >
+                {isRecording ? <MicOff size={18} aria-hidden="true" /> : <Save size={18} aria-hidden="true" />}
+                {isRecording ? "Stop & Save" : "Record Training Data"}
+              </button>
+            </section>
+
+            {/* Runtime Info */}
+            <section className="glass-panel p-5">
+              <h2 className="text-sm font-bold text-white tracking-wide uppercase">Runtime</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <InfoRow label="Monitoring" value={isMonitoring ? "Running" : "Stopped"} />
+                <InfoRow label="Predicting" value={isPredicting ? "Active" : "Idle"} />
+                <InfoRow label="Microphone" value={micStatusLabel(micStatus)} />
+                <InfoRow label="Training" value={isTrainingActive ? `${training.algorithm} (${training.progress}%)` : "Idle"} />
+                <InfoRow label="Status" value={serviceMessage} />
+              </dl>
+              {errorMessage ? (
+                <div className="mt-4 rounded-lg border border-app-danger/30 bg-app-danger/10 p-3 text-sm text-app-danger shadow-[0_0_15px_rgba(244,63,94,0.15)]">{errorMessage}</div>
+              ) : null}
+            </section>
+          </aside>
+        </div>
+      ) : activeTab === "batch" ? (
+        <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* Left: Batch upload / folder training */}
+          <BatchDashboard onModelUpdated={training.refreshModelStatus} />
+          {/* Right: Training config panel */}
+          <div>
+            <TrainingConfigPanel />
+          </div>
+        </div>
       ) : (
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-          <BatchDashboard onModelUpdated={refreshModelStatus} />
+          <PredictionPanel />
         </div>
       )}
+
+      {/* Floating training progress — persists across tabs */}
+      <TrainingProgressOverlay />
     </main>
+  );
+}
+
+export default function App(): JSX.Element {
+  return (
+    <TrainingProvider>
+      <AppInner />
+    </TrainingProvider>
   );
 }
 
