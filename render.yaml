@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: fan-anomaly-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: FAN_ALLOWED_ORIGINS
+        value: "*" # Allow requests from Vercel frontend
