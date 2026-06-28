@@ -388,9 +388,35 @@ def train_model_streaming(
             "algorithm": algo_display, "message": "Scaling features…",
         })
 
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
+        is_incremental_algo = algo_info.get("incremental", False)
+        incremental = False
+        compatible = False
+
+        if is_incremental_algo and MODEL_PATH.exists():
+            try:
+                existing = joblib.load(MODEL_PATH)
+                compatible = (
+                    (algorithm.lower() == "sgd" and isinstance(existing, SGDClassifier))
+                    or (algorithm.lower() == "naive_bayes" and isinstance(existing, GaussianNB))
+                )
+            except Exception:
+                compatible = False
+
+        if compatible and SCALER_PATH.exists():
+            try:
+                scaler = joblib.load(SCALER_PATH)
+                scaler.partial_fit(X_train)
+                X_train_scaled = scaler.transform(X_train)
+                X_test_scaled = scaler.transform(X_test)
+            except Exception:
+                scaler = StandardScaler()
+                X_train_scaled = scaler.fit_transform(X_train)
+                X_test_scaled = scaler.transform(X_test)
+                compatible = False
+        else:
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
 
         if cancel.is_set():
             raise TrainingCancelledError("Training cancelled by user.")
@@ -402,24 +428,11 @@ def train_model_streaming(
             "algorithm": algo_display, "message": f"Training {algo_display}…",
         })
 
-        is_incremental_algo = algo_info.get("incremental", False)
-        incremental = False
-
-        if is_incremental_algo and MODEL_PATH.exists():
-            existing = joblib.load(MODEL_PATH)
-            # Check if existing model matches the requested incremental type
-            compatible = (
-                (algorithm.lower() == "sgd" and isinstance(existing, SGDClassifier))
-                or (algorithm.lower() == "naive_bayes" and isinstance(existing, GaussianNB))
-            )
-            if compatible:
-                classifier = existing
-                classifier.partial_fit(X_train_scaled, y_train, classes=LABELS)
-                incremental = True
-                evaluation_note += " (Incremental update applied.)"
-            else:
-                classifier = _create_classifier(algorithm)
-                classifier.fit(X_train_scaled, y_train)
+        if compatible:
+            classifier = existing
+            classifier.partial_fit(X_train_scaled, y_train, classes=LABELS)
+            incremental = True
+            evaluation_note += " (Incremental update applied.)"
         else:
             classifier = _create_classifier(algorithm)
             classifier.fit(X_train_scaled, y_train)
@@ -528,27 +541,41 @@ def train_model(
         X_train, X_test, y_train, y_test = X, X, y, y
         evaluation_note = "Dataset is small; metrics calculated on all training data."
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
     is_incremental_algo = ALGORITHM_REGISTRY.get(algorithm.lower(), {}).get("incremental", False)
     incremental = False
+    compatible = False
 
     if is_incremental_algo and MODEL_PATH.exists():
-        existing = joblib.load(MODEL_PATH)
-        compatible = (
-            (algorithm.lower() == "sgd" and isinstance(existing, SGDClassifier))
-            or (algorithm.lower() == "naive_bayes" and isinstance(existing, GaussianNB))
-        )
-        if compatible:
-            classifier = existing
-            classifier.partial_fit(X_train_scaled, y_train, classes=LABELS)
-            incremental = True
-            evaluation_note += " (Incremental update applied.)"
-        else:
-            classifier = _create_classifier(algorithm)
-            classifier.fit(X_train_scaled, y_train)
+        try:
+            existing = joblib.load(MODEL_PATH)
+            compatible = (
+                (algorithm.lower() == "sgd" and isinstance(existing, SGDClassifier))
+                or (algorithm.lower() == "naive_bayes" and isinstance(existing, GaussianNB))
+            )
+        except Exception:
+            compatible = False
+
+    if compatible and SCALER_PATH.exists():
+        try:
+            scaler = joblib.load(SCALER_PATH)
+            scaler.partial_fit(X_train)
+            X_train_scaled = scaler.transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+        except Exception:
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+            compatible = False
+    else:
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+    if compatible:
+        classifier = existing
+        classifier.partial_fit(X_train_scaled, y_train, classes=LABELS)
+        incremental = True
+        evaluation_note += " (Incremental update applied.)"
     else:
         classifier = _create_classifier(algorithm)
         classifier.fit(X_train_scaled, y_train)
